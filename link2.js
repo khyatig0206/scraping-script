@@ -10,49 +10,55 @@ app.use(express.json());
 app.post('/api/scrape', async (req, res) => {
     const { url } = req.body;
 
-    try {
-        // Launch a browser instance
+    try { 
         const browser = await puppeteer.launch({ headless: false });
         const page = await browser.newPage();
 
-        // Go to the provided URL
-        await page.goto(url, { waitUntil: 'networkidle2' });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 120000 });
 
-        // Scroll down the page to load more results
+        // Wait for the necessary elements to load initially
+        await page.waitForSelector('.resultbox_info');
+
+        const doctors = new Set();
+
         let previousHeight;
-        while (true) {
-            // Scroll down the page
+        while (doctors.size < 100) {  // Adjust the number of unique entries you want to collect
             previousHeight = await page.evaluate('document.body.scrollHeight');
             await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
-            await page.waitForTimeout(2000); // Wait for 2 seconds
+            await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 2000)));  // Wait for 2 seconds for the next set of data to load
+
+            // Extract data from the page
+            const newDoctors = await page.evaluate(() => {
+                const results = [];
+                const elements = document.querySelectorAll('.resultbox_info');
+                elements.forEach(element => {
+                    const anchor = element.querySelector('.resultbox_title_anchorbox');
+                    if (anchor) {
+                        const href = anchor.getAttribute('href');
+                        results.push(`https://www.justdial.com${href}`);
+                    }
+                });
+                return results;
+            });
+
+            // Add only unique entries to the doctors set
+            newDoctors.forEach(doctor => doctors.add(doctor));
 
             const currentHeight = await page.evaluate('document.body.scrollHeight');
             if (currentHeight === previousHeight) {
-                break; // Exit the loop if no more content is loaded
+                break;  // Exit loop if no more content is loaded
             }
         }
 
-        // Extract data from the page
-        const doctors = await page.evaluate(() => {
-            const results = [];
-            const elements = document.querySelectorAll('.resultbox_info');
-            elements.forEach(element => {
-                const href = element.querySelector('.resultbox_title_anchorbox').getAttribute('href');
-                results.push(`https://www.justdial.com${href}`);
-            });
-            return results;
-        });
-
-        // Close the browser
         await browser.close();
 
-        // Convert the array of links into CSV format
-        const csvContent = doctors.join('\n');
+        // Prepare the content to append
+        const csvContent = Array.from(doctors).join('\n');
 
-        // Save the CSV to a file
-        fs.writeFileSync('doctors.csv', csvContent);
+        // Append the unique data to the CSV file (create it if it doesn't exist)
+        fs.appendFileSync('doctors.csv', csvContent + '\n');
 
-        res.json({ message: 'Data scraped and saved to doctors.csv' });
+        res.json({ message: `Data scraped and appended to doctors.csv with ${doctors.size} unique entries` });
     } catch (error) {
         console.error('Failed to scrape data:', error);
         res.status(500).json({ error: 'Failed to scrape data' });

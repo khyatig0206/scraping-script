@@ -21,17 +21,16 @@ app.post('/api/scrape', async (req, res) => {
 
         $('.resultbox_info').each((index, element) => {
             const href = $(element).find('.resultbox_title_anchorbox').attr('href');
-
             doctors.push({ href });
         });
 
         // Convert the array of objects into CSV format
         const csvContent = doctors.map((doctor) => `https://www.justdial.com${doctor.href}`).join('\n');
 
-        // Save the CSV to a file
-        fs.writeFileSync('doctors.csv', csvContent);
+        // Append the CSV content to an existing file or create the file if it doesn't exist
+        fs.appendFileSync('doctors.csv', csvContent + '\n');
 
-        res.json({ message: 'Data scraped and saved to doctors.csv' });
+        res.json({ message: 'Data scraped and appended to doctors.csv' });
     } catch (error) {
         console.error('Failed to scrape data:', error);
         res.status(500).json({ error: 'Failed to scrape data' });
