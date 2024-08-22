@@ -2,6 +2,11 @@ import json
 from reqbody import generate_request_body
 import requests
 import csv
+from pymongo import MongoClient
+
+client = MongoClient('mongodb+srv://khyatig0206:muskey2004@mycluster.yauzwsg.mongodb.net/')
+db = client['doctor_database']
+collection = db['doctor_details']
 
 csv_file_path = 'doctors.csv'
 
@@ -62,4 +67,7 @@ with open(csv_file_path, newline='') as csvfile:
         }
         print("Response Status Code:", response.status_code)
                 # print("Response Headers:", response.headers)
-        print("Response Body:", details)
+        # Insert the details into MongoDB
+        collection.insert_one(details)
+
+print("All details have been saved to MongoDB.")
